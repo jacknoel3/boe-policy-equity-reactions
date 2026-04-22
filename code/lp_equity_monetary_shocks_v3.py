@@ -12,7 +12,7 @@ from utils import load_equity_index_from_consolidated
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data" / "raw"
+DATA_DIR = BASE_DIR / "data"
 OUTPUT_DIR = BASE_DIR / "output_v3"
 FIGURES_DIR = OUTPUT_DIR / "figures"
 TABLES_DIR = OUTPUT_DIR / "tables"

@@ -18,46 +18,41 @@ research-project/
 ├── CITATION.cff
 ├── requirements.txt
 ├── data/
-│   ├── raw/
-│   ├── interim/
-│   └── processed/
+│   ├── measuring-monetary-policy-in-the-uk-the-ukmpesd.xlsx
+│   └── uk_equity_indices_PX_LAST_19970101_20260312.csv
 ├── code/
-├── output/
+├── output*/
 │   ├── figures/
-│   ├── tables/
-│   └── logs/
-├── docs/
+│   └── tables/
 └── notebooks/
 ```
 
 ## Data
 
-- `data/raw/`: original source files as obtained from vendors, spreadsheets, or manual downloads.
-- `data/interim/`: cleaned intermediate files produced during inspection and preparation.
-- `data/processed/`: analysis-ready datasets used in estimation and plotting.
+- `data/`: original input files used by the analysis scripts.
 
-Some large or proprietary data may not be redistributed through this repository and may need to be added manually to `data/raw/`.
+Generated analysis tables and figures are written to the versioned `output*` folders, not back into `data/`.
 
 ## Code
 
 - `code/data_inspection.py`: initial inspection of raw monetary-shock and equity files.
 - `code/lp_equity_monetary_shocks_v1.py`: baseline local projection model for FTSE 100 responses.
-- `code/lp_equity_monetary_shocks_v2.py`: planned extensions and robustness checks for the baseline specification.
-- `code/lp_ftse250.py`: planned FTSE 250 analysis.
+- `code/lp_equity_monetary_shocks_v2.py`: extensions and robustness checks for the baseline specification.
+- `code/lp_equity_monetary_shocks_v3.py`: FTSE 250 robustness and subsample analysis.
+- `code/lp_equity_monetary_shocks_v4.py`: regime-interaction extension.
 - `code/lp_sector_analysis.py`: planned sector-level equity analysis.
-- `code/utils.py`: shared helper functions for future scripts.
+- `code/utils.py`: shared helper functions.
 
 ## Output
 
-- `output/figures/`: saved impulse-response plots and related visual outputs.
-- `output/tables/`: regression tables and exported result files.
-- `output/logs/`: run logs and execution notes.
+- `output*/figures/`: saved impulse-response plots and related visual outputs.
+- `output*/tables/`: regression tables and exported result files.
 
 ## Reproduction
 
 1. Create and activate a Python environment.
 2. Install dependencies with `pip install -r requirements.txt`.
-3. Add required raw data files to `data/raw/`.
+3. Add required data files to `data/`.
 4. Run scripts from the repository root or from within `code/`, depending on the script documentation.
 5. Review generated tables and figures under `output/`.
 
