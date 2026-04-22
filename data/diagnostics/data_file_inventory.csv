@@ -1,0 +1,3 @@
+file,path,size_bytes,role,sheets_or_columns
+measuring-monetary-policy-in-the-uk-the-ukmpesd.xlsx,data/measuring-monetary-policy-in-the-uk-the-ukmpesd.xlsx,196126,monetary policy shocks,Cover; readme; summary of asset prices; surprises; factors; Literature Review
+uk_equity_indices_PX_LAST_19970101_20260312.csv,data/uk_equity_indices_PX_LAST_19970101_20260312.csv,2936551,consolidated equity prices,"Date, Security, Label, PX_LAST"

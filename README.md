@@ -19,7 +19,8 @@ research-project/
 ├── requirements.txt
 ├── data/
 │   ├── measuring-monetary-policy-in-the-uk-the-ukmpesd.xlsx
-│   └── uk_equity_indices_PX_LAST_19970101_20260312.csv
+│   ├── uk_equity_indices_PX_LAST_19970101_20260312.csv
+│   └── diagnostics/
 ├── code/
 ├── output*/
 │   ├── figures/
@@ -30,12 +31,13 @@ research-project/
 ## Data
 
 - `data/`: original input files used by the analysis scripts.
+- `data/diagnostics/`: pre-analysis audit outputs created by `code/data_inspection.py`.
 
-Generated analysis tables and figures are written to the versioned `output*` folders, not back into `data/`.
+Generated model tables and figures are written to the versioned `output*` folders.
 
 ## Code
 
-- `code/data_inspection.py`: initial inspection of raw monetary-shock and equity files.
+- `code/data_inspection.py`: pre-analysis diagnostics for monetary-shock and equity inputs.
 - `code/lp_equity_monetary_shocks_v1.py`: baseline local projection model for FTSE 100 responses.
 - `code/lp_equity_monetary_shocks_v2.py`: extensions and robustness checks for the baseline specification.
 - `code/lp_equity_monetary_shocks_v3.py`: FTSE 250 robustness and subsample analysis.
@@ -53,8 +55,9 @@ Generated analysis tables and figures are written to the versioned `output*` fol
 1. Create and activate a Python environment.
 2. Install dependencies with `pip install -r requirements.txt`.
 3. Add required data files to `data/`.
-4. Run scripts from the repository root or from within `code/`, depending on the script documentation.
-5. Review generated tables and figures under `output/`.
+4. Optionally run `python code/data_inspection.py` to create pre-analysis diagnostics under `data/diagnostics/`.
+5. Run scripts from the repository root or from within `code/`, depending on the script documentation.
+6. Review generated tables and figures under `output*/`.
 
 ## Future Extensions
 

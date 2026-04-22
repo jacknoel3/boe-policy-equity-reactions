@@ -1,0 +1,4 @@
+index,shock_event_dates,matched_trading_dates,unmatched_event_dates,match_rate,first_unmatched_dates
+ftse100,376,376,0,1.0,
+ftse250,376,376,0,1.0,
+ftse_all_share,376,376,0,1.0,
