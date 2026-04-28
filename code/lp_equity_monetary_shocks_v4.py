@@ -140,8 +140,8 @@ def build_merged_dataset(target_equity: pd.DataFrame, control_data: dict[str, pd
         merged = merged.merge(control_df, on="date", how="left")
 
     for shock in SHOCK_NAMES:
-        merged[f"{shock}_pos"] = np.maximum(merged[shock], 0.0)
-        merged[f"{shock}_neg"] = np.minimum(merged[shock], 0.0)
+        merged[f"{shock}_tightening"] = np.maximum(merged[shock], 0.0)
+        merged[f"{shock}_easing"] = -np.minimum(merged[shock], 0.0)
 
     for lag in range(1, MAX_RETURN_LAGS + 1):
         merged[f"log_return_lag{lag}"] = merged["log_return"].shift(lag)
@@ -208,7 +208,7 @@ def get_active_shocks(df: pd.DataFrame) -> list[str]:
     for shock in SHOCK_NAMES:
         if float(df[shock].abs().sum()) == 0.0:
             continue
-        if int(df[f"{shock}_pos"].ne(0).sum()) == 0 and int(df[f"{shock}_neg"].ne(0).sum()) == 0:
+        if int(df[f"{shock}_tightening"].ne(0).sum()) == 0 and int(df[f"{shock}_easing"].ne(0).sum()) == 0:
             continue
         active_shocks.append(shock)
     return active_shocks
@@ -235,7 +235,7 @@ def run_lp_regressions(df: pd.DataFrame, sample_name: str, spec: dict[str, objec
     control_columns = get_control_columns(spec)
     shock_columns: list[str] = []
     for shock in active_shocks:
-        shock_columns.extend([f"{shock}_pos", f"{shock}_neg"])
+        shock_columns.extend([f"{shock}_tightening", f"{shock}_easing"])
 
     results: list[dict[str, object]] = []
     for horizon in range(MAX_HORIZON + 1):
@@ -251,18 +251,18 @@ def run_lp_regressions(df: pd.DataFrame, sample_name: str, spec: dict[str, objec
         param_names = list(model.params.index)
 
         for shock in active_shocks:
-            pos_var = f"{shock}_pos"
-            neg_var = f"{shock}_neg"
+            tightening_var = f"{shock}_tightening"
+            easing_var = f"{shock}_easing"
 
             restriction = np.zeros((1, len(param_names)))
-            restriction[0, param_names.index(pos_var)] = 1.0
-            restriction[0, param_names.index(neg_var)] = -1.0
+            restriction[0, param_names.index(tightening_var)] = 1.0
+            restriction[0, param_names.index(easing_var)] = -1.0
             asymmetry_test = model.t_test(restriction)
 
-            beta_pos = float(model.params[pos_var])
-            se_pos = float(model.bse[pos_var])
-            beta_neg = float(model.params[neg_var])
-            se_neg = float(model.bse[neg_var])
+            beta_tightening = float(model.params[tightening_var])
+            se_tightening = float(model.bse[tightening_var])
+            beta_easing = float(model.params[easing_var])
+            se_easing = float(model.bse[easing_var])
 
             results.append(
                 {
@@ -271,16 +271,16 @@ def run_lp_regressions(df: pd.DataFrame, sample_name: str, spec: dict[str, objec
                     "robustness_spec": str(spec["name"]),
                     "shock": shock,
                     "horizon": horizon,
-                    "beta_pos": beta_pos,
-                    "se_pos": se_pos,
-                    "pvalue_pos": float(model.pvalues[pos_var]),
-                    "ci_lower_pos": beta_pos - CONF_Z * se_pos,
-                    "ci_upper_pos": beta_pos + CONF_Z * se_pos,
-                    "beta_neg": beta_neg,
-                    "se_neg": se_neg,
-                    "pvalue_neg": float(model.pvalues[neg_var]),
-                    "ci_lower_neg": beta_neg - CONF_Z * se_neg,
-                    "ci_upper_neg": beta_neg + CONF_Z * se_neg,
+                    "beta_tightening": beta_tightening,
+                    "se_tightening": se_tightening,
+                    "pvalue_tightening": float(model.pvalues[tightening_var]),
+                    "ci_lower_tightening": beta_tightening - CONF_Z * se_tightening,
+                    "ci_upper_tightening": beta_tightening + CONF_Z * se_tightening,
+                    "beta_easing": beta_easing,
+                    "se_easing": se_easing,
+                    "pvalue_easing": float(model.pvalues[easing_var]),
+                    "ci_lower_easing": beta_easing - CONF_Z * se_easing,
+                    "ci_upper_easing": beta_easing + CONF_Z * se_easing,
                     "asymmetry_test_stat": float(np.asarray(asymmetry_test.tvalue).squeeze()),
                     "asymmetry_pvalue": float(np.asarray(asymmetry_test.pvalue).squeeze()),
                     "nobs": int(model.nobs),
@@ -299,7 +299,7 @@ def get_regime_interaction_columns(df: pd.DataFrame, shock: str) -> list[str]:
         if regime_dummy not in df.columns or df[regime_dummy].nunique(dropna=True) < 2:
             continue
 
-        for shock_part in (f"{shock}_pos", f"{shock}_neg"):
+        for shock_part in (f"{shock}_tightening", f"{shock}_easing"):
             interaction_col = f"{shock_part}_x_{regime_dummy}"
             df[interaction_col] = df[shock_part] * df[regime_dummy]
             if float(df[interaction_col].abs().sum()) == 0.0:
@@ -335,11 +335,11 @@ def append_regime_response_row(
     shock: str,
     horizon: int,
     regime: str,
-    pos_terms: dict[str, float],
-    neg_terms: dict[str, float],
+    tightening_terms: dict[str, float],
+    easing_terms: dict[str, float],
 ) -> None:
-    beta_pos, se_pos, pvalue_pos, ci_lower_pos, ci_upper_pos = estimate_linear_combination(model, pos_terms)
-    beta_neg, se_neg, pvalue_neg, ci_lower_neg, ci_upper_neg = estimate_linear_combination(model, neg_terms)
+    beta_tightening, se_tightening, pvalue_tightening, ci_lower_tightening, ci_upper_tightening = estimate_linear_combination(model, tightening_terms)
+    beta_easing, se_easing, pvalue_easing, ci_lower_easing, ci_upper_easing = estimate_linear_combination(model, easing_terms)
 
     results.append(
         {
@@ -351,16 +351,16 @@ def append_regime_response_row(
             "regime": regime,
             "regime_label": REGIME_DISPLAY_NAMES.get(regime, regime),
             "horizon": horizon,
-            "beta_pos": beta_pos,
-            "se_pos": se_pos,
-            "pvalue_pos": pvalue_pos,
-            "ci_lower_pos": ci_lower_pos,
-            "ci_upper_pos": ci_upper_pos,
-            "beta_neg": beta_neg,
-            "se_neg": se_neg,
-            "pvalue_neg": pvalue_neg,
-            "ci_lower_neg": ci_lower_neg,
-            "ci_upper_neg": ci_upper_neg,
+            "beta_tightening": beta_tightening,
+            "se_tightening": se_tightening,
+            "pvalue_tightening": pvalue_tightening,
+            "ci_lower_tightening": ci_lower_tightening,
+            "ci_upper_tightening": ci_upper_tightening,
+            "beta_easing": beta_easing,
+            "se_easing": se_easing,
+            "pvalue_easing": pvalue_easing,
+            "ci_lower_easing": ci_lower_easing,
+            "ci_upper_easing": ci_upper_easing,
             "nobs": int(model.nobs),
             "r_squared": float(model.rsquared),
             "return_lags": int(spec["return_lags"]),
@@ -378,7 +378,7 @@ def run_regime_interaction_lp_regressions(df: pd.DataFrame, sample_name: str, sp
         if shock_df.empty or shock not in get_active_shocks(shock_df):
             continue
 
-        base_shock_columns = [f"{shock}_pos", f"{shock}_neg"]
+        base_shock_columns = [f"{shock}_tightening", f"{shock}_easing"]
         interaction_columns = get_regime_interaction_columns(shock_df, shock)
         model_columns = base_shock_columns + interaction_columns + control_columns
 
@@ -394,8 +394,8 @@ def run_regime_interaction_lp_regressions(df: pd.DataFrame, sample_name: str, sp
             model = sm.OLS(y, x).fit(cov_type="HAC", cov_kwds={"maxlags": horizon + 1})
             param_names = set(model.params.index)
 
-            pos_var = f"{shock}_pos"
-            neg_var = f"{shock}_neg"
+            tightening_var = f"{shock}_tightening"
+            easing_var = f"{shock}_easing"
             append_regime_response_row(
                 results,
                 model,
@@ -404,14 +404,14 @@ def run_regime_interaction_lp_regressions(df: pd.DataFrame, sample_name: str, sp
                 shock=shock,
                 horizon=horizon,
                 regime="baseline",
-                pos_terms={pos_var: 1.0},
-                neg_terms={neg_var: 1.0},
+                tightening_terms={tightening_var: 1.0},
+                easing_terms={easing_var: 1.0},
             )
 
             for regime_dummy in REGIME_DUMMIES:
-                pos_interaction = f"{pos_var}_x_{regime_dummy}"
-                neg_interaction = f"{neg_var}_x_{regime_dummy}"
-                if pos_interaction not in param_names or neg_interaction not in param_names:
+                tightening_interaction = f"{tightening_var}_x_{regime_dummy}"
+                easing_interaction = f"{easing_var}_x_{regime_dummy}"
+                if tightening_interaction not in param_names or easing_interaction not in param_names:
                     continue
 
                 append_regime_response_row(
@@ -422,8 +422,8 @@ def run_regime_interaction_lp_regressions(df: pd.DataFrame, sample_name: str, sp
                     shock=shock,
                     horizon=horizon,
                     regime=regime_dummy,
-                    pos_terms={pos_var: 1.0, pos_interaction: 1.0},
-                    neg_terms={neg_var: 1.0, neg_interaction: 1.0},
+                    tightening_terms={tightening_var: 1.0, tightening_interaction: 1.0},
+                    easing_terms={easing_var: 1.0, easing_interaction: 1.0},
                 )
 
     return pd.DataFrame(results)
@@ -439,8 +439,8 @@ def build_magnitude_summary(results_df: pd.DataFrame, merged_df: pd.DataFrame) -
         return pd.DataFrame()
 
     selected["shock_std"] = selected["shock"].map(shock_std_map)
-    selected["response_1sd_tightening"] = selected["beta_pos"] * selected["shock_std"]
-    selected["response_1sd_easing"] = selected["beta_neg"] * (-selected["shock_std"])
+    selected["response_1sd_tightening"] = selected["beta_tightening"] * selected["shock_std"]
+    selected["response_1sd_easing"] = selected["beta_easing"] * selected["shock_std"]
 
     columns = [
         "index",
@@ -507,25 +507,25 @@ def plot_robustness_comparison(all_results: pd.DataFrame, shock: str, sample_nam
             continue
 
         color = color_map.get(spec_name, None)
-        axes[0].plot(spec_subset["horizon"], spec_subset["beta_pos"], color=color, linewidth=2, label=spec_name)
+        axes[0].plot(spec_subset["horizon"], spec_subset["beta_tightening"], color=color, linewidth=2, label=spec_name)
         axes[0].fill_between(
             spec_subset["horizon"],
-            spec_subset["ci_lower_pos"],
-            spec_subset["ci_upper_pos"],
+            spec_subset["ci_lower_tightening"],
+            spec_subset["ci_upper_tightening"],
             color=color,
             alpha=0.12,
         )
-        axes[1].plot(spec_subset["horizon"], spec_subset["beta_neg"], color=color, linewidth=2, label=spec_name)
+        axes[1].plot(spec_subset["horizon"], spec_subset["beta_easing"], color=color, linewidth=2, label=spec_name)
         axes[1].fill_between(
             spec_subset["horizon"],
-            spec_subset["ci_lower_neg"],
-            spec_subset["ci_upper_neg"],
+            spec_subset["ci_lower_easing"],
+            spec_subset["ci_upper_easing"],
             color=color,
             alpha=0.12,
         )
 
-    axes[0].set_title("Tightening")
-    axes[1].set_title("Easing")
+    axes[0].set_title("Tightening shock")
+    axes[1].set_title("Easing shock")
     axes[0].set_ylabel("Cumulative log return response")
     for ax in axes:
         ax.axhline(0.0, color="black", linestyle="--", linewidth=1)
@@ -577,25 +577,25 @@ def plot_subsample_comparison(
     for sample_name in available_samples:
         sample_subset = subset[subset["sample"] == sample_name].sort_values("horizon")
         color = color_map.get(sample_name, None)
-        axes[0].plot(sample_subset["horizon"], sample_subset["beta_pos"], color=color, linewidth=2, label=sample_name)
+        axes[0].plot(sample_subset["horizon"], sample_subset["beta_tightening"], color=color, linewidth=2, label=sample_name)
         axes[0].fill_between(
             sample_subset["horizon"],
-            sample_subset["ci_lower_pos"],
-            sample_subset["ci_upper_pos"],
+            sample_subset["ci_lower_tightening"],
+            sample_subset["ci_upper_tightening"],
             color=color,
             alpha=0.12,
         )
-        axes[1].plot(sample_subset["horizon"], sample_subset["beta_neg"], color=color, linewidth=2, label=sample_name)
+        axes[1].plot(sample_subset["horizon"], sample_subset["beta_easing"], color=color, linewidth=2, label=sample_name)
         axes[1].fill_between(
             sample_subset["horizon"],
-            sample_subset["ci_lower_neg"],
-            sample_subset["ci_upper_neg"],
+            sample_subset["ci_lower_easing"],
+            sample_subset["ci_upper_easing"],
             color=color,
             alpha=0.12,
         )
 
-    axes[0].set_title("Tightening")
-    axes[1].set_title("Easing")
+    axes[0].set_title("Tightening shock")
+    axes[1].set_title("Easing shock")
     axes[0].set_ylabel("Cumulative log return response")
     for ax in axes:
         ax.axhline(0.0, color="black", linestyle="--", linewidth=1)
@@ -646,25 +646,25 @@ def plot_regime_interaction_irfs(
 
         color = color_map.get(regime, None)
         label = REGIME_DISPLAY_NAMES.get(regime, regime)
-        axes[0].plot(regime_subset["horizon"], regime_subset["beta_pos"], color=color, linewidth=2, label=label)
+        axes[0].plot(regime_subset["horizon"], regime_subset["beta_tightening"], color=color, linewidth=2, label=label)
         axes[0].fill_between(
             regime_subset["horizon"],
-            regime_subset["ci_lower_pos"],
-            regime_subset["ci_upper_pos"],
+            regime_subset["ci_lower_tightening"],
+            regime_subset["ci_upper_tightening"],
             color=color,
             alpha=0.12,
         )
-        axes[1].plot(regime_subset["horizon"], regime_subset["beta_neg"], color=color, linewidth=2, label=label)
+        axes[1].plot(regime_subset["horizon"], regime_subset["beta_easing"], color=color, linewidth=2, label=label)
         axes[1].fill_between(
             regime_subset["horizon"],
-            regime_subset["ci_lower_neg"],
-            regime_subset["ci_upper_neg"],
+            regime_subset["ci_lower_easing"],
+            regime_subset["ci_upper_easing"],
             color=color,
             alpha=0.12,
         )
 
-    axes[0].set_title("Tightening")
-    axes[1].set_title("Easing")
+    axes[0].set_title("Tightening shock")
+    axes[1].set_title("Easing shock")
     axes[0].set_ylabel("Cumulative log return response")
     for ax in axes:
         ax.axhline(0.0, color="black", linestyle="--", linewidth=1)

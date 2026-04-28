@@ -132,8 +132,8 @@ def merge_data(equity: pd.DataFrame, shocks: pd.DataFrame) -> pd.DataFrame:
 def create_asymmetric_shocks(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     for shock in ["target", "path", "qe"]:
-        df[f"{shock}_pos"] = np.maximum(df[shock], 0.0)
-        df[f"{shock}_neg"] = np.minimum(df[shock], 0.0)
+        df[f"{shock}_tightening"] = np.maximum(df[shock], 0.0)
+        df[f"{shock}_easing"] = -np.minimum(df[shock], 0.0)
     return df
 
 
@@ -152,13 +152,13 @@ def create_lp_variables(df: pd.DataFrame, max_horizon: int = MAX_HORIZON, return
 
 def run_local_projection(df: pd.DataFrame, shock_name: str, max_horizon: int = MAX_HORIZON, return_lags: int = RETURN_LAGS) -> pd.DataFrame:
     results = []
-    pos_var = f"{shock_name}_pos"
-    neg_var = f"{shock_name}_neg"
+    tightening_var = f"{shock_name}_tightening"
+    easing_var = f"{shock_name}_easing"
     lag_vars = [f"log_return_lag{lag}" for lag in range(1, return_lags + 1)]
 
     for horizon in range(max_horizon + 1):
         y_var = f"cum_return_h{horizon}"
-        regression_df = df[["in_estimation_sample", y_var, pos_var, neg_var] + lag_vars].dropna().copy()
+        regression_df = df[["in_estimation_sample", y_var, tightening_var, easing_var] + lag_vars].dropna().copy()
         regression_df = regression_df[regression_df["in_estimation_sample"]].copy()
 
         if regression_df.empty:
@@ -166,22 +166,22 @@ def run_local_projection(df: pd.DataFrame, shock_name: str, max_horizon: int = M
             continue
 
         y = regression_df[y_var]
-        x = sm.add_constant(regression_df[[pos_var, neg_var] + lag_vars], has_constant="add")
+        x = sm.add_constant(regression_df[[tightening_var, easing_var] + lag_vars], has_constant="add")
         model = sm.OLS(y, x).fit(cov_type="HAC", cov_kwds={"maxlags": horizon + 1})
 
-        beta_pos = model.params[pos_var]
-        se_pos = model.bse[pos_var]
-        beta_neg = model.params[neg_var]
-        se_neg = model.bse[neg_var]
-        ci_pos_low = beta_pos - CONF_Z * se_pos
-        ci_pos_high = beta_pos + CONF_Z * se_pos
-        ci_neg_low = beta_neg - CONF_Z * se_neg
-        ci_neg_high = beta_neg + CONF_Z * se_neg
+        beta_tightening = model.params[tightening_var]
+        se_tightening = model.bse[tightening_var]
+        beta_easing = model.params[easing_var]
+        se_easing = model.bse[easing_var]
+        ci_tightening_low = beta_tightening - CONF_Z * se_tightening
+        ci_tightening_high = beta_tightening + CONF_Z * se_tightening
+        ci_easing_low = beta_easing - CONF_Z * se_easing
+        ci_easing_high = beta_easing + CONF_Z * se_easing
 
         restriction = np.zeros((1, len(model.params)))
         param_names = list(model.params.index)
-        restriction[0, param_names.index(pos_var)] = 1.0
-        restriction[0, param_names.index(neg_var)] = -1.0
+        restriction[0, param_names.index(tightening_var)] = 1.0
+        restriction[0, param_names.index(easing_var)] = -1.0
         asymmetry_test = model.t_test(restriction)
         asymmetry_pvalue = float(np.asarray(asymmetry_test.pvalue).squeeze())
 
@@ -189,14 +189,14 @@ def run_local_projection(df: pd.DataFrame, shock_name: str, max_horizon: int = M
             {
                 "shock": shock_name,
                 "horizon": horizon,
-                "beta_pos": beta_pos,
-                "se_pos": se_pos,
-                "ci_lower_pos": ci_pos_low,
-                "ci_upper_pos": ci_pos_high,
-                "beta_neg": beta_neg,
-                "se_neg": se_neg,
-                "ci_lower_neg": ci_neg_low,
-                "ci_upper_neg": ci_neg_high,
+                "beta_tightening": beta_tightening,
+                "se_tightening": se_tightening,
+                "ci_lower_tightening": ci_tightening_low,
+                "ci_upper_tightening": ci_tightening_high,
+                "beta_easing": beta_easing,
+                "se_easing": se_easing,
+                "ci_lower_easing": ci_easing_low,
+                "ci_upper_easing": ci_easing_high,
                 "asymmetry_pvalue": asymmetry_pvalue,
                 "nobs": int(model.nobs),
                 "r_squared": model.rsquared,
@@ -213,20 +213,20 @@ def plot_irf(results_df: pd.DataFrame, shock_name: str):
     fig, ax = plt.subplots(figsize=(10, 6))
 
     horizons = results_df["horizon"]
-    ax.plot(horizons, results_df["beta_pos"], label="Tightening (positive shock)", color="tab:blue", linewidth=2)
+    ax.plot(horizons, results_df["beta_tightening"], label="Tightening shock", color="tab:blue", linewidth=2)
     ax.fill_between(
         horizons,
-        results_df["ci_lower_pos"],
-        results_df["ci_upper_pos"],
+        results_df["ci_lower_tightening"],
+        results_df["ci_upper_tightening"],
         color="tab:blue",
         alpha=0.2,
     )
 
-    ax.plot(horizons, results_df["beta_neg"], label="Easing (negative shock)", color="tab:red", linewidth=2)
+    ax.plot(horizons, results_df["beta_easing"], label="Easing shock", color="tab:red", linewidth=2)
     ax.fill_between(
         horizons,
-        results_df["ci_lower_neg"],
-        results_df["ci_upper_neg"],
+        results_df["ci_lower_easing"],
+        results_df["ci_upper_easing"],
         color="tab:red",
         alpha=0.2,
     )
